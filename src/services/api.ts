@@ -10,11 +10,14 @@ export async function fetchCategory(category: Category): Promise<ApiResponse> {
   return data as ApiResponse;
 }
 
-export async function fetchSubtitles(srtUrl: string): Promise<string> {
-  if (!srtUrl || !srtUrl.endsWith(".srt")) return "";
+export async function fetchSubtitles(srtUrl: string, translate = false): Promise<string> {
+  if (!srtUrl) return "";
   try {
-    const res = await fetch(srtUrl);
-    return await res.text();
+    const { data, error } = await supabase.functions.invoke("api-proxy", {
+      body: { subtitleUrl: srtUrl, translate },
+    });
+    if (error) return "";
+    return data?.text || "";
   } catch {
     return "";
   }
@@ -47,7 +50,16 @@ export function parseSRT(srt: string): SubtitleCue[] {
 }
 
 function parseTime(t: string): number {
-  const [h, m, rest] = t.split(":");
-  const [s, ms] = rest.replace(",", ".").split(".");
-  return +h * 3600 + +m * 60 + +s + (+ms || 0) / 1000;
+  const parts = t.split(":");
+  if (parts.length === 3) {
+    const [h, m, rest] = parts;
+    const secs = rest.replace(",", ".");
+    return +h * 3600 + +m * 60 + parseFloat(secs);
+  }
+  if (parts.length === 2) {
+    const [m, rest] = parts;
+    const secs = rest.replace(",", ".");
+    return +m * 60 + parseFloat(secs);
+  }
+  return 0;
 }
