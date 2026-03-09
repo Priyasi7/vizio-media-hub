@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import Hls from "hls.js";
 import type { ContentItem } from "@/types/content";
 import { fetchSubtitles, parseSRT, type SubtitleCue } from "@/services/api";
-import { ArrowLeft, Volume2, VolumeX, Captions } from "lucide-react";
+import { ArrowLeft, Volume2, VolumeX, Captions, Languages } from "lucide-react";
 
 interface VideoPlayerProps {
   item: ContentItem;
@@ -11,56 +12,116 @@ interface VideoPlayerProps {
 const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [subtitles, setSubtitles] = useState<SubtitleCue[]>([]);
+  const [translatedSubs, setTranslatedSubs] = useState<SubtitleCue[]>([]);
   const [currentCue, setCurrentCue] = useState("");
+  const [currentTranslated, setCurrentTranslated] = useState("");
   const [showCaptions, setShowCaptions] = useState(true);
   const [ttsActive, setTtsActive] = useState(false);
-  const [translatedCues, setTranslatedCues] = useState<Map<string, string>>(new Map());
+  const [translated, setTranslated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const lastSpoken = useRef("");
 
-  // Load subtitles
+  // Set up HLS
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const src = item.videoUrl;
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        xhrSetup: (xhr) => {
+          // Allow redirects
+        },
+      });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setLoading(false);
+        video.play().catch(() => {});
+      });
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          // Fallback to direct source
+          video.src = src;
+          video.play().catch(() => {});
+          setLoading(false);
+        }
+      });
+      return () => hls.destroy();
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;
+      video.addEventListener("loadedmetadata", () => {
+        setLoading(false);
+        video.play().catch(() => {});
+      });
+    } else {
+      video.src = src;
+      setLoading(false);
+    }
+  }, [item.videoUrl]);
+
+  // Load original subtitles
   useEffect(() => {
     if (item.backgroundUrl) {
-      fetchSubtitles(item.backgroundUrl).then((srt) => {
+      fetchSubtitles(item.backgroundUrl, false).then((srt) => {
         setSubtitles(parseSRT(srt));
       });
     }
   }, [item.backgroundUrl]);
 
-  // Update current cue based on video time
-  const handleTimeUpdate = useCallback(() => {
-    if (!videoRef.current || subtitles.length === 0) return;
-    const time = videoRef.current.currentTime;
-    const cue = subtitles.find((c) => time >= c.start && time <= c.end);
-    setCurrentCue(cue?.text || "");
-  }, [subtitles]);
-
-  // TTS - speak current cue in English using browser synthesis
+  // Load translated subtitles
   useEffect(() => {
-    if (!ttsActive || !currentCue) return;
-    const cached = translatedCues.get(currentCue);
-    if (cached) {
-      speakText(cached);
-    } else {
-      // Simple translation: use the original text (browser TTS)
-      // For real translation you'd call a translation API
-      speakText(currentCue);
-      setTranslatedCues((prev) => new Map(prev).set(currentCue, currentCue));
+    if (item.backgroundUrl && translated) {
+      fetchSubtitles(item.backgroundUrl, true).then((srt) => {
+        setTranslatedSubs(parseSRT(srt));
+      });
     }
-  }, [currentCue, ttsActive]);
+  }, [item.backgroundUrl, translated]);
 
-  const speakText = (text: string) => {
+  // Update current cue
+  const handleTimeUpdate = useCallback(() => {
+    if (!videoRef.current) return;
+    const time = videoRef.current.currentTime;
+
+    if (subtitles.length > 0) {
+      const cue = subtitles.find((c) => time >= c.start && time <= c.end);
+      setCurrentCue(cue?.text || "");
+    }
+    if (translatedSubs.length > 0) {
+      const cue = translatedSubs.find((c) => time >= c.start && time <= c.end);
+      setCurrentTranslated(cue?.text || "");
+    }
+  }, [subtitles, translatedSubs]);
+
+  // TTS for translated text
+  useEffect(() => {
+    if (!ttsActive) return;
+    const textToSpeak = translated ? currentTranslated : currentCue;
+    if (!textToSpeak || textToSpeak === lastSpoken.current) return;
+
+    lastSpoken.current = textToSpeak;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-US";
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = translated ? "en-US" : "es-ES";
     utterance.rate = 1.1;
+    utterance.volume = 0.8;
     window.speechSynthesis.speak(utterance);
-  };
+  }, [currentCue, currentTranslated, ttsActive, translated]);
 
   const toggleTTS = () => {
     if (ttsActive) {
       window.speechSynthesis.cancel();
+      lastSpoken.current = "";
     }
     setTtsActive(!ttsActive);
   };
+
+  const toggleTranslate = () => {
+    setTranslated(!translated);
+  };
+
+  const displayCue = translated ? currentTranslated : currentCue;
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
@@ -74,37 +135,55 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
           Back
         </button>
         <h3 className="font-display text-xl tracking-wide">{item.title}</h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleTranslate}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+              translated ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+            }`}
+          >
+            <Languages className="w-3.5 h-3.5" />
+            {translated ? "EN" : "ES"}
+          </button>
           <button
             onClick={() => setShowCaptions(!showCaptions)}
-            className={`p-2 rounded-full transition ${showCaptions ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}
+            className={`p-2 rounded-full transition ${
+              showCaptions ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+            }`}
           >
             <Captions className="w-4 h-4" />
           </button>
           <button
             onClick={toggleTTS}
-            className={`p-2 rounded-full transition ${ttsActive ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}
+            className={`p-2 rounded-full transition ${
+              ttsActive ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+            }`}
           >
             {ttsActive ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center z-20">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
       {/* Video */}
       <video
         ref={videoRef}
-        src={item.videoUrl}
         className="flex-1 w-full h-full object-contain bg-background"
         controls
-        autoPlay
         onTimeUpdate={handleTimeUpdate}
-        crossOrigin="anonymous"
+        playsInline
       />
 
       {/* Subtitle overlay */}
-      {showCaptions && currentCue && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-2xl px-4 py-2 bg-background/80 rounded-lg backdrop-blur-sm text-center">
-          <p className="text-sm text-foreground">{currentCue}</p>
+      {showCaptions && displayCue && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-2xl px-5 py-2.5 bg-background/85 rounded-lg backdrop-blur-sm text-center">
+          <p className="text-base text-foreground leading-relaxed">{displayCue}</p>
         </div>
       )}
     </div>
