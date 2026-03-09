@@ -1,18 +1,38 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { ContentItem } from "@/types/content";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play, Volume2 } from "lucide-react";
 
 interface ContentRowProps {
   title: string;
   items: ContentItem[];
   onSelect: (item: ContentItem) => void;
+  translate?: (text: string) => string;
 }
 
-const ContentRow = ({ title, items, onSelect }: ContentRowProps) => {
+const ContentRow = ({ title, items, onSelect, translate }: ContentRowProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [speakingId, setSpeakingId] = useState<number | null>(null);
+  const t = translate || ((s: string) => s);
 
   const scroll = (dir: number) => {
     scrollRef.current?.scrollBy({ left: dir * 300, behavior: "smooth" });
+  };
+
+  const handleTTS = (e: React.MouseEvent, item: ContentItem) => {
+    e.stopPropagation();
+    window.speechSynthesis.cancel();
+
+    if (speakingId === item.id) {
+      setSpeakingId(null);
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(t(item.description));
+    utterance.lang = "en-US";
+    utterance.rate = 0.9;
+    utterance.onend = () => setSpeakingId(null);
+    window.speechSynthesis.speak(utterance);
+    setSpeakingId(item.id);
   };
 
   return (
@@ -32,7 +52,6 @@ const ContentRow = ({ title, items, onSelect }: ContentRowProps) => {
           {items.map((item) => (
             <div
               key={item.id}
-              onClick={() => onSelect(item)}
               className="flex-shrink-0 w-44 cursor-pointer group/card transition-transform hover:scale-105"
             >
               <div className="relative aspect-video rounded-md overflow-hidden mb-2 shadow-lg">
@@ -42,9 +61,29 @@ const ContentRow = ({ title, items, onSelect }: ContentRowProps) => {
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
+                {/* Hover overlay with Play & TTS */}
+                <div className="absolute inset-0 bg-background/60 opacity-0 group-hover/card:opacity-100 transition flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => onSelect(item)}
+                    className="p-2 rounded-full bg-primary text-primary-foreground hover:brightness-110 transition"
+                  >
+                    <Play className="w-4 h-4" fill="currentColor" />
+                  </button>
+                  <button
+                    onClick={(e) => handleTTS(e, item)}
+                    className={`p-2 rounded-full transition ${
+                      speakingId === item.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground hover:bg-accent"
+                    }`}
+                    title="Listen in English"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-secondary-foreground truncate">
-                {item.title}
+                {t(item.title)}
               </p>
             </div>
           ))}

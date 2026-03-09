@@ -5,9 +5,12 @@ interface HeroBannerProps {
   item: ContentItem;
   onPlay: (item: ContentItem) => void;
   onTTS: (text: string) => void;
+  translate?: (text: string) => string;
 }
 
-const HeroBanner = ({ item, onPlay, onTTS }: HeroBannerProps) => {
+const HeroBanner = ({ item, onPlay, onTTS, translate }: HeroBannerProps) => {
+  const t = translate || ((s: string) => s);
+
   return (
     <div className="relative h-[70vh] min-h-[500px] w-full overflow-hidden">
       <img
@@ -15,7 +18,6 @@ const HeroBanner = ({ item, onPlay, onTTS }: HeroBannerProps) => {
         alt={item.title}
         className="absolute inset-0 w-full h-full object-cover"
       />
-      {/* Gradients */}
       <div
         className="absolute inset-0"
         style={{ background: "linear-gradient(to right, hsl(0 0% 4% / 0.85) 30%, transparent 70%)" }}
@@ -27,13 +29,13 @@ const HeroBanner = ({ item, onPlay, onTTS }: HeroBannerProps) => {
 
       <div className="absolute bottom-20 left-8 right-8 max-w-xl animate-fade-in">
         <h2 className="text-5xl md:text-6xl font-display tracking-wide mb-2">
-          {item.title}
+          {t(item.title)}
         </h2>
         <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
-          {item.tags}
+          {t(item.tags)}
         </p>
         <p className="text-sm text-secondary-foreground leading-relaxed mb-6 line-clamp-3">
-          {item.description}
+          {t(item.description)}
         </p>
         <div className="flex items-center gap-3">
           <button
@@ -44,7 +46,7 @@ const HeroBanner = ({ item, onPlay, onTTS }: HeroBannerProps) => {
             Play
           </button>
           <button
-            onClick={() => onTTS(item.description)}
+            onClick={() => onTTS(t(item.description))}
             className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-border text-foreground text-sm hover:bg-secondary transition"
           >
             <Volume2 className="w-4 h-4" />
