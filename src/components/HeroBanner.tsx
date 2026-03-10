@@ -39,15 +39,17 @@ const HeroBanner = ({ item, onPlay, onTTS, translate }: HeroBannerProps) => {
         </p>
         <div className="flex items-center gap-3">
           <button
+            data-nav="hero"
             onClick={() => onPlay(item)}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary text-primary-foreground font-semibold text-sm hover:brightness-110 transition"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary text-primary-foreground font-semibold text-sm hover:brightness-110 transition focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <Play className="w-4 h-4" fill="currentColor" />
             Play
           </button>
           <button
+            data-nav="hero"
             onClick={() => onTTS(t(item.description))}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-border text-foreground text-sm hover:bg-secondary transition"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-border text-foreground text-sm hover:bg-secondary transition focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <Volume2 className="w-4 h-4" />
             Listen in English

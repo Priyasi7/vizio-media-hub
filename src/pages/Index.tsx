@@ -4,6 +4,7 @@ import HeroBanner from "@/components/HeroBanner";
 import ContentRow from "@/components/ContentRow";
 import VideoPlayer from "@/components/VideoPlayer";
 import { useContent } from "@/hooks/useContent";
+import { useSpatialNav } from "@/hooks/useSpatialNav";
 import type { Category, ContentItem } from "@/types/content";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Languages } from "lucide-react";
@@ -59,6 +60,7 @@ const Index = () => {
   const [playing, setPlaying] = useState<ContentItem | null>(null);
   const [translatePage, setTranslatePage] = useState(false);
   const { data, isLoading } = useContent(category);
+  const navRef = useSpatialNav();
 
   const handlePlay = useCallback((item: ContentItem) => {
     setPlaying(item);
@@ -82,7 +84,7 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div ref={navRef} className="min-h-screen bg-background">
       <Navbar active={category} onSelect={setCategory}>
         <button
           onClick={() => setTranslatePage(!translatePage)}

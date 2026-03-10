@@ -22,8 +22,9 @@ const Navbar = ({ active, onSelect, children }: NavbarProps) => {
         {CATEGORIES.map((cat) => (
           <button
             key={cat.key}
+            data-nav="nav"
             onClick={() => onSelect(cat.key)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-ring ${
               active === cat.key
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground"
