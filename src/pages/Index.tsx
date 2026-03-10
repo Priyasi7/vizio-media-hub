@@ -4,6 +4,7 @@ import HeroBanner from "@/components/HeroBanner";
 import ContentRow from "@/components/ContentRow";
 import VideoPlayer from "@/components/VideoPlayer";
 import { useContent } from "@/hooks/useContent";
+import { useSpatialNav } from "@/hooks/useSpatialNav";
 import type { Category, ContentItem } from "@/types/content";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Languages } from "lucide-react";
