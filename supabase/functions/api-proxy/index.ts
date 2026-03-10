@@ -23,21 +23,38 @@ serve(async (req) => {
 
     // Proxy subtitle files
     if (subtitleUrl) {
-      const res = await fetch(subtitleUrl);
-      const text = await res.text();
+      try {
+        const res = await fetch(subtitleUrl, { redirect: 'follow' });
+        if (!res.ok) {
+          return new Response(JSON.stringify({ text: "" }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const contentType = res.headers.get('content-type') || '';
+        const text = await res.text();
+        
+        // Check if we got XML error instead of subtitle
+        if (text.includes('<Error>') || text.includes('AccessDenied') || contentType.includes('xml')) {
+          return new Response(JSON.stringify({ text: "" }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
 
-      if (translate) {
-        // Simple word-level translation using a basic approach
-        // For production, use a real translation API
-        const translated = simpleTranslate(text);
-        return new Response(JSON.stringify({ text: translated }), {
+        if (translate) {
+          const translated = simpleTranslate(text);
+          return new Response(JSON.stringify({ text: translated }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        return new Response(JSON.stringify({ text }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ text: "" }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
-      return new Response(JSON.stringify({ text }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     // Proxy category API
