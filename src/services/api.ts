@@ -13,19 +13,41 @@ export async function fetchCategory(category: Category): Promise<ApiResponse> {
 export async function fetchSubtitles(srtUrl: string, translate = false): Promise<string> {
   if (!srtUrl) return "";
   try {
-    // First fetch the raw SRT
+    // Try original URL first
     const { data, error } = await supabase.functions.invoke("api-proxy", {
       body: { subtitleUrl: srtUrl, translate: false },
     });
-    if (error || !data?.text) return "";
+    
+    let srtText = data?.text || "";
+    
+    // Check if response is an error (XML error from CDN)
+    if (error || srtText.includes("<Error>") || srtText.includes("AccessDenied") || !srtText.trim()) {
+      // Try alternate CDN URL pattern
+      const altUrl = srtUrl
+        .replace("adcdn.nyc3.cdn.digitaloceanspaces.com", "nyc3.digitaloceanspaces.com/adcdn")
+        .replace("nyc3.digitaloceanspaces.com/adcdn", "adcdn.nyc3.cdn.digitaloceanspaces.com");
+      
+      if (altUrl !== srtUrl) {
+        const { data: altData } = await supabase.functions.invoke("api-proxy", {
+          body: { subtitleUrl: altUrl, translate: false },
+        });
+        if (altData?.text && !altData.text.includes("<Error>")) {
+          srtText = altData.text;
+        } else {
+          return "";
+        }
+      } else {
+        return "";
+      }
+    }
 
-    if (!translate) return data.text;
+    if (!translate) return srtText;
 
     // Use AI translation
     const { data: translated, error: translateError } = await supabase.functions.invoke("translate-captions", {
-      body: { srtText: data.text },
+      body: { srtText },
     });
-    if (translateError || !translated?.translatedSrt) return data.text;
+    if (translateError || !translated?.translatedSrt) return srtText;
     return translated.translatedSrt;
   } catch {
     return "";
