@@ -17,8 +17,9 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
   const [currentTranslated, setCurrentTranslated] = useState("");
   const [showCaptions, setShowCaptions] = useState(true);
   const [ttsActive, setTtsActive] = useState(false);
-  const [translated, setTranslated] = useState(false);
+  const [translated, setTranslated] = useState(true); // Auto-enable English
   const [loading, setLoading] = useState(true);
+  const [translating, setTranslating] = useState(false);
   const lastSpoken = useRef("");
 
   // Set up HLS
@@ -70,14 +71,16 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
     }
   }, [item.backgroundUrl]);
 
-  // Load translated subtitles
+  // Load translated subtitles via AI
   useEffect(() => {
-    if (item.backgroundUrl && translated) {
+    if (item.backgroundUrl && translated && translatedSubs.length === 0) {
+      setTranslating(true);
       fetchSubtitles(item.backgroundUrl, true).then((srt) => {
         setTranslatedSubs(parseSRT(srt));
-      });
+        setTranslating(false);
+      }).catch(() => setTranslating(false));
     }
-  }, [item.backgroundUrl, translated]);
+  }, [item.backgroundUrl, translated, translatedSubs.length]);
 
   // Update current cue
   const handleTimeUpdate = useCallback(() => {
@@ -168,6 +171,13 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center z-20">
           <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* Translating indicator */}
+      {translating && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-card/90 rounded-full backdrop-blur-sm">
+          <p className="text-xs text-muted-foreground animate-pulse">Generating English captions...</p>
         </div>
       )}
 

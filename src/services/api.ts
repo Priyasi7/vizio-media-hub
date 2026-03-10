@@ -13,11 +13,20 @@ export async function fetchCategory(category: Category): Promise<ApiResponse> {
 export async function fetchSubtitles(srtUrl: string, translate = false): Promise<string> {
   if (!srtUrl) return "";
   try {
+    // First fetch the raw SRT
     const { data, error } = await supabase.functions.invoke("api-proxy", {
-      body: { subtitleUrl: srtUrl, translate },
+      body: { subtitleUrl: srtUrl, translate: false },
     });
-    if (error) return "";
-    return data?.text || "";
+    if (error || !data?.text) return "";
+
+    if (!translate) return data.text;
+
+    // Use AI translation
+    const { data: translated, error: translateError } = await supabase.functions.invoke("translate-captions", {
+      body: { srtText: data.text },
+    });
+    if (translateError || !translated?.translatedSrt) return data.text;
+    return translated.translatedSrt;
   } catch {
     return "";
   }
