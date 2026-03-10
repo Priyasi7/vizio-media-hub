@@ -174,6 +174,13 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
         </div>
       )}
 
+      {/* Translating indicator */}
+      {translating && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-card/90 rounded-full backdrop-blur-sm">
+          <p className="text-xs text-muted-foreground animate-pulse">Generating English captions...</p>
+        </div>
+      )}
+
       {/* Video */}
       <video
         ref={videoRef}
