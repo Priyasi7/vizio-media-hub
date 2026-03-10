@@ -71,14 +71,16 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
     }
   }, [item.backgroundUrl]);
 
-  // Load translated subtitles
+  // Load translated subtitles via AI
   useEffect(() => {
-    if (item.backgroundUrl && translated) {
+    if (item.backgroundUrl && translated && translatedSubs.length === 0) {
+      setTranslating(true);
       fetchSubtitles(item.backgroundUrl, true).then((srt) => {
         setTranslatedSubs(parseSRT(srt));
-      });
+        setTranslating(false);
+      }).catch(() => setTranslating(false));
     }
-  }, [item.backgroundUrl, translated]);
+  }, [item.backgroundUrl, translated, translatedSubs.length]);
 
   // Update current cue
   const handleTimeUpdate = useCallback(() => {
