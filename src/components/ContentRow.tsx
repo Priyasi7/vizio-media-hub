@@ -52,7 +52,11 @@ const ContentRow = ({ title, items, onSelect, translate }: ContentRowProps) => {
           {items.map((item) => (
             <div
               key={item.id}
-              className="flex-shrink-0 w-44 cursor-pointer group/card transition-transform hover:scale-105"
+              data-nav="card"
+              tabIndex={0}
+              role="button"
+              onClick={() => onSelect(item)}
+              className="flex-shrink-0 w-44 cursor-pointer group/card transition-transform hover:scale-105 focus:scale-105 focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
             >
               <div className="relative aspect-video rounded-md overflow-hidden mb-2 shadow-lg">
                 <img
@@ -61,17 +65,19 @@ const ContentRow = ({ title, items, onSelect, translate }: ContentRowProps) => {
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
-                {/* Hover overlay with Play & TTS */}
-                <div className="absolute inset-0 bg-background/60 opacity-0 group-hover/card:opacity-100 transition flex items-center justify-center gap-2">
+                {/* Hover/focus overlay with Play & TTS */}
+                <div className="absolute inset-0 bg-background/60 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition flex items-center justify-center gap-2">
                   <button
-                    onClick={() => onSelect(item)}
-                    className="p-2 rounded-full bg-primary text-primary-foreground hover:brightness-110 transition"
+                    data-nav="card-play"
+                    onClick={(e) => { e.stopPropagation(); onSelect(item); }}
+                    className="p-2 rounded-full bg-primary text-primary-foreground hover:brightness-110 transition focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <Play className="w-4 h-4" fill="currentColor" />
                   </button>
                   <button
+                    data-nav="card-tts"
                     onClick={(e) => handleTTS(e, item)}
-                    className={`p-2 rounded-full transition ${
+                    className={`p-2 rounded-full transition focus:outline-none focus:ring-2 focus:ring-ring ${
                       speakingId === item.id
                         ? "bg-primary text-primary-foreground"
                         : "bg-secondary text-secondary-foreground hover:bg-accent"

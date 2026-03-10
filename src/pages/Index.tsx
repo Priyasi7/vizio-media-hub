@@ -84,7 +84,7 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div ref={navRef} className="min-h-screen bg-background">
       <Navbar active={category} onSelect={setCategory}>
         <button
           onClick={() => setTranslatePage(!translatePage)}
