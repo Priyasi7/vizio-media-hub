@@ -60,6 +60,7 @@ const Index = () => {
   const [playing, setPlaying] = useState<ContentItem | null>(null);
   const [translatePage, setTranslatePage] = useState(false);
   const { data, isLoading } = useContent(category);
+  const navRef = useSpatialNav();
 
   const handlePlay = useCallback((item: ContentItem) => {
     setPlaying(item);
