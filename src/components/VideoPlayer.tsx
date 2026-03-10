@@ -11,45 +11,81 @@ interface VideoPlayerProps {
 
 const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [subtitles, setSubtitles] = useState<SubtitleCue[]>([]);
   const [translatedSubs, setTranslatedSubs] = useState<SubtitleCue[]>([]);
   const [currentCue, setCurrentCue] = useState("");
   const [currentTranslated, setCurrentTranslated] = useState("");
   const [showCaptions, setShowCaptions] = useState(true);
   const [ttsActive, setTtsActive] = useState(false);
-  const [translated, setTranslated] = useState(true); // Auto-enable English
+  const [translated, setTranslated] = useState(true);
   const [loading, setLoading] = useState(true);
   const [translating, setTranslating] = useState(false);
+  const [captionSource, setCaptionSource] = useState<"srt" | "ai" | "none">("none");
   const lastSpoken = useRef("");
 
-  // Set up HLS
+  // Fix mixed-content: rewrite http to https
+  const fixUrl = (url: string) => url.replace(/^http:\/\//, "https://");
+
+  // Set up HLS with robust error recovery
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const src = item.videoUrl;
+    const src = fixUrl(item.videoUrl);
 
     if (Hls.isSupported()) {
       const hls = new Hls({
-        xhrSetup: (xhr) => {
-          // Allow redirects
+        enableWorker: true,
+        lowLatencyMode: false,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4,
+        xhrSetup: (xhr, url) => {
+          // Rewrite any http URLs in manifests/segments
+          const fixedUrl = fixUrl(url);
+          if (fixedUrl !== url) {
+            xhr.open("GET", fixedUrl, true);
+          }
         },
       });
+
+      hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setLoading(false);
         video.play().catch(() => {});
       });
+
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
-          // Fallback to direct source
-          video.src = src;
-          video.play().catch(() => {});
-          setLoading(false);
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn("HLS network error, attempting recovery...");
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn("HLS media error, attempting recovery...");
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error("HLS fatal error, falling back to direct src");
+              hls.destroy();
+              video.src = src;
+              video.play().catch(() => {});
+              setLoading(false);
+              break;
+          }
         }
       });
-      return () => hls.destroy();
+
+      return () => {
+        hls.destroy();
+        hlsRef.current = null;
+      };
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
       video.addEventListener("loadedmetadata", () => {
@@ -62,25 +98,67 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
     }
   }, [item.videoUrl]);
 
-  // Load original subtitles
+  // Load original subtitles, fallback to AI description captions
   useEffect(() => {
-    if (item.backgroundUrl) {
-      fetchSubtitles(item.backgroundUrl, false).then((srt) => {
-        setSubtitles(parseSRT(srt));
-      });
-    }
-  }, [item.backgroundUrl]);
+    let cancelled = false;
+
+    const loadSubs = async () => {
+      if (item.backgroundUrl) {
+        const srt = await fetchSubtitles(item.backgroundUrl, false);
+        const parsed = parseSRT(srt);
+        if (!cancelled && parsed.length > 0) {
+          setSubtitles(parsed);
+          setCaptionSource("srt");
+          return;
+        }
+      }
+
+      // No valid SRT — generate simple captions from description
+      if (!cancelled && item.description) {
+        const descCue: SubtitleCue = {
+          start: 0,
+          end: 999999,
+          text: item.description,
+        };
+        setSubtitles([descCue]);
+        setCaptionSource("ai");
+      }
+    };
+
+    loadSubs();
+    return () => { cancelled = true; };
+  }, [item.backgroundUrl, item.description]);
 
   // Load translated subtitles via AI
   useEffect(() => {
-    if (item.backgroundUrl && translated && translatedSubs.length === 0) {
-      setTranslating(true);
-      fetchSubtitles(item.backgroundUrl, true).then((srt) => {
-        setTranslatedSubs(parseSRT(srt));
-        setTranslating(false);
-      }).catch(() => setTranslating(false));
-    }
-  }, [item.backgroundUrl, translated, translatedSubs.length]);
+    if (!translated || translatedSubs.length > 0) return;
+
+    let cancelled = false;
+
+    const loadTranslated = async () => {
+      if (item.backgroundUrl && captionSource === "srt") {
+        setTranslating(true);
+        const srt = await fetchSubtitles(item.backgroundUrl, true);
+        const parsed = parseSRT(srt);
+        if (!cancelled) {
+          if (parsed.length > 0) {
+            setTranslatedSubs(parsed);
+          }
+          setTranslating(false);
+        }
+      } else if (captionSource === "ai" && item.description) {
+        // Description is likely already mixed lang; show as-is for translation
+        setTranslatedSubs([{
+          start: 0,
+          end: 999999,
+          text: item.description,
+        }]);
+      }
+    };
+
+    loadTranslated();
+    return () => { cancelled = true; };
+  }, [translated, translatedSubs.length, captionSource, item.backgroundUrl, item.description]);
 
   // Update current cue
   const handleTimeUpdate = useCallback(() => {
@@ -125,6 +203,23 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
   };
 
   const displayCue = translated ? currentTranslated : currentCue;
+
+  // Handle video stalling - auto-retry
+  const handleStalled = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    if (hlsRef.current) {
+      console.warn("Video stalled, restarting HLS load...");
+      hlsRef.current.startLoad();
+    } else {
+      // For non-HLS, try reloading from current position
+      const currentTime = video.currentTime;
+      video.load();
+      video.currentTime = currentTime;
+      video.play().catch(() => {});
+    }
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
@@ -181,12 +276,22 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
         </div>
       )}
 
+      {/* Caption source badge */}
+      {captionSource === "ai" && showCaptions && (
+        <div className="absolute top-16 right-4 z-20 px-3 py-1 bg-accent/20 rounded-full">
+          <p className="text-[10px] text-accent-foreground">Auto Caption</p>
+        </div>
+      )}
+
       {/* Video */}
       <video
         ref={videoRef}
         className="flex-1 w-full h-full object-contain bg-background"
         controls
         onTimeUpdate={handleTimeUpdate}
+        onStalled={handleStalled}
+        onWaiting={() => setLoading(true)}
+        onPlaying={() => setLoading(false)}
         playsInline
       />
 
