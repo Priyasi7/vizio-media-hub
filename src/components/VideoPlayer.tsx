@@ -17,8 +17,9 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
   const [currentTranslated, setCurrentTranslated] = useState("");
   const [showCaptions, setShowCaptions] = useState(true);
   const [ttsActive, setTtsActive] = useState(false);
-  const [translated, setTranslated] = useState(false);
+  const [translated, setTranslated] = useState(true); // Auto-enable English
   const [loading, setLoading] = useState(true);
+  const [translating, setTranslating] = useState(false);
   const lastSpoken = useRef("");
 
   // Set up HLS
