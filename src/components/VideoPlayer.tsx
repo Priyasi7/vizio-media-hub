@@ -71,14 +71,14 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
     }
   }, [item.backgroundUrl]);
 
-  // Load translated subtitles
+  // Always load translated subtitles
   useEffect(() => {
-    if (item.backgroundUrl && translated) {
+    if (item.backgroundUrl) {
       fetchSubtitles(item.backgroundUrl, true).then((srt) => {
         setTranslatedSubs(parseSRT(srt));
       });
     }
-  }, [item.backgroundUrl, translated]);
+  }, [item.backgroundUrl]);
 
   // Update current cue
   const handleTimeUpdate = useCallback(() => {
