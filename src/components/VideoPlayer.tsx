@@ -16,6 +16,7 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
   const [currentCue, setCurrentCue] = useState("");
   const [currentTranslated, setCurrentTranslated] = useState("");
   const [showCaptions, setShowCaptions] = useState(true);
+  const [showOriginal, setShowOriginal] = useState(true);
   const [ttsActive, setTtsActive] = useState(false);
   const [translated, setTranslated] = useState(false);
   const [loading, setLoading] = useState(true);
