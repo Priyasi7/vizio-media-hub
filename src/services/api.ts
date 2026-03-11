@@ -31,7 +31,9 @@ export interface SubtitleCue {
 
 export function parseSRT(srt: string): SubtitleCue[] {
   if (!srt) return [];
-  const blocks = srt.trim().split(/\n\s*\n/);
+  // Strip VTT header if present
+  let cleaned = srt.replace(/^WEBVTT[^\n]*\n\n?/, '').replace(/^Kind:.*\n/gm, '').replace(/^Language:.*\n/gm, '');
+  const blocks = cleaned.trim().split(/\n\s*\n/);
   return blocks.map((block) => {
     const lines = block.split("\n");
     const timeLine = lines.find((l) => l.includes("-->"));
@@ -40,7 +42,9 @@ export function parseSRT(srt: string): SubtitleCue[] {
     const text = lines
       .slice(lines.indexOf(timeLine) + 1)
       .join(" ")
-      .replace(/<[^>]*>/g, "");
+      .replace(/<[^>]*>/g, "")
+      .trim();
+    if (!text) return null;
     return {
       start: parseTime(startStr.trim()),
       end: parseTime(endStr.trim()),

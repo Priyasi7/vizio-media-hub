@@ -23,21 +23,44 @@ serve(async (req) => {
 
     // Proxy subtitle files
     if (subtitleUrl) {
-      const res = await fetch(subtitleUrl);
-      const text = await res.text();
+      try {
+        const res = await fetch(subtitleUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0',
+            'Accept': '*/*',
+          },
+        });
+        
+        if (!res.ok) {
+          console.error(`Subtitle fetch failed: ${res.status} ${res.statusText} for ${subtitleUrl}`);
+          return new Response(JSON.stringify({ text: "", error: `HTTP ${res.status}` }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        let text = await res.text();
+        
+        // Convert VTT to SRT-like format (strip WEBVTT header)
+        if (subtitleUrl.endsWith('.vtt') || text.startsWith('WEBVTT')) {
+          text = text.replace(/^WEBVTT[^\n]*\n\n?/, '').replace(/^Kind:.*\n/gm, '').replace(/^Language:.*\n/gm, '');
+        }
 
-      if (translate) {
-        // Simple word-level translation using a basic approach
-        // For production, use a real translation API
-        const translated = simpleTranslate(text);
-        return new Response(JSON.stringify({ text: translated }), {
+        if (translate) {
+          const translated = simpleTranslate(text);
+          return new Response(JSON.stringify({ text: translated }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        return new Response(JSON.stringify({ text }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (fetchErr) {
+        console.error(`Subtitle fetch error: ${fetchErr}`);
+        return new Response(JSON.stringify({ text: "", error: String(fetchErr) }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
-      return new Response(JSON.stringify({ text }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     // Proxy category API
