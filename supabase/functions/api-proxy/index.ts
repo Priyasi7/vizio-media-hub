@@ -24,23 +24,47 @@ serve(async (req) => {
     // Proxy subtitle files
     if (subtitleUrl) {
       try {
-        const res = await fetch(subtitleUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0',
-            'Accept': '*/*',
-          },
-        });
+        // Build list of URLs to try: original + fallback variants
+        const urlsToTry = [subtitleUrl];
         
-        if (!res.ok) {
-          console.error(`Subtitle fetch failed: ${res.status} ${res.statusText} for ${subtitleUrl}`);
-          return new Response(JSON.stringify({ text: "", error: `HTTP ${res.status}` }), {
+        // If CDN URL fails, try non-CDN URL and vice versa
+        if (subtitleUrl.includes('adcdn.nyc3.cdn.digitaloceanspaces.com/content/')) {
+          urlsToTry.push(subtitleUrl.replace('adcdn.nyc3.cdn.digitaloceanspaces.com/content/', 'nyc3.digitaloceanspaces.com/adcdn/content/'));
+        } else if (subtitleUrl.includes('nyc3.digitaloceanspaces.com/adcdn/content/')) {
+          urlsToTry.push(subtitleUrl.replace('nyc3.digitaloceanspaces.com/adcdn/content/', 'adcdn.nyc3.cdn.digitaloceanspaces.com/content/'));
+        }
+
+        let text = "";
+        let fetched = false;
+
+        for (const url of urlsToTry) {
+          try {
+            const res = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': '*/*',
+                'Referer': 'https://trackingrkx.com/',
+              },
+            });
+            if (res.ok) {
+              text = await res.text();
+              fetched = true;
+              console.log(`Subtitle fetched OK from: ${url}`);
+              break;
+            }
+            console.error(`Subtitle ${res.status} for ${url}`);
+          } catch (e) {
+            console.error(`Subtitle fetch error for ${url}: ${e}`);
+          }
+        }
+
+        if (!fetched) {
+          return new Response(JSON.stringify({ text: "", error: "All subtitle URLs failed" }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         
-        let text = await res.text();
-        
-        // Convert VTT to SRT-like format (strip WEBVTT header)
+        // Convert VTT to SRT-like format
         if (subtitleUrl.endsWith('.vtt') || text.startsWith('WEBVTT')) {
           text = text.replace(/^WEBVTT[^\n]*\n\n?/, '').replace(/^Kind:.*\n/gm, '').replace(/^Language:.*\n/gm, '');
         }
