@@ -16,6 +16,7 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
   const [currentCue, setCurrentCue] = useState("");
   const [currentTranslated, setCurrentTranslated] = useState("");
   const [showCaptions, setShowCaptions] = useState(true);
+  const [showOriginal, setShowOriginal] = useState(true);
   const [ttsActive, setTtsActive] = useState(false);
   const [translated, setTranslated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -70,14 +71,14 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
     }
   }, [item.backgroundUrl]);
 
-  // Load translated subtitles
+  // Always load translated subtitles
   useEffect(() => {
-    if (item.backgroundUrl && translated) {
+    if (item.backgroundUrl) {
       fetchSubtitles(item.backgroundUrl, true).then((srt) => {
         setTranslatedSubs(parseSRT(srt));
       });
     }
-  }, [item.backgroundUrl, translated]);
+  }, [item.backgroundUrl]);
 
   // Update current cue
   const handleTimeUpdate = useCallback(() => {
@@ -121,8 +122,6 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
     setTranslated(!translated);
   };
 
-  const displayCue = translated ? currentTranslated : currentCue;
-
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Top bar */}
@@ -137,13 +136,21 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
         <h3 className="font-display text-xl tracking-wide">{item.title}</h3>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowOriginal(!showOriginal)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+              showOriginal ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+            }`}
+          >
+            ES
+          </button>
+          <button
             onClick={toggleTranslate}
             className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${
               translated ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
             }`}
           >
             <Languages className="w-3.5 h-3.5" />
-            {translated ? "EN" : "ES"}
+            EN
           </button>
           <button
             onClick={() => setShowCaptions(!showCaptions)}
@@ -180,10 +187,15 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
         playsInline
       />
 
-      {/* Subtitle overlay */}
-      {showCaptions && displayCue && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-2xl px-5 py-2.5 bg-background/85 rounded-lg backdrop-blur-sm text-center">
-          <p className="text-base text-foreground leading-relaxed">{displayCue}</p>
+      {/* Subtitle overlay - show both original and translated */}
+      {showCaptions && (currentCue || currentTranslated) && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 max-w-2xl px-5 py-2.5 bg-background/85 rounded-lg backdrop-blur-sm text-center space-y-1">
+          {showOriginal && currentCue && (
+            <p className="text-base text-foreground leading-relaxed">{currentCue}</p>
+          )}
+          {translated && currentTranslated && (
+            <p className="text-sm text-muted-foreground leading-relaxed italic">{currentTranslated}</p>
+          )}
         </div>
       )}
     </div>
