@@ -18,7 +18,7 @@ const VideoPlayer = ({ item, onBack }: VideoPlayerProps) => {
   const [showCaptions, setShowCaptions] = useState(true);
   const [showOriginal, setShowOriginal] = useState(true);
   const [ttsActive, setTtsActive] = useState(false);
-  const [translated, setTranslated] = useState(false);
+  const [translated, setTranslated] = useState(true);
   const [loading, setLoading] = useState(true);
   const lastSpoken = useRef("");
 
